@@ -1,0 +1,352 @@
+---
+// Define TypeScript interfaces
+interface CyclingData {
+  date: string;
+  avgPower: number;
+  distance: number;
+  duration: number;
+}
+
+interface ChartData extends CyclingData {
+  displayDate: string;
+}
+
+// Your actual Garmin data
+const sampleData: CyclingData[] = [
+  { date: '2025-07-22', avgPower: 35, distance: 2.14, duration: 10.05 },
+  { date: '2025-07-24', avgPower: 59, distance: 3.25, duration: 10.05 },
+  { date: '2025-07-27', avgPower: 61, distance: 5.01, duration: 15.28 },
+  { date: '2025-07-29', avgPower: 64, distance: 5.12, duration: 15.05 },
+  { date: '2025-08-01', avgPower: 59, distance: 5.01, duration: 15.28 },
+  { date: '2025-08-03', avgPower: 60, distance: 5.08, duration: 15.03 },
+  { date: '2025-08-04', avgPower: 72, distance: 5.31, duration: 15.03 },
+  { date: '2025-08-06', avgPower: 77, distance: 5.58, duration: 15.05 },
+  { date: '2025-08-07', avgPower: 69, distance: 7.08, duration: 20.03 },
+  { date: '2025-08-09', avgPower: 81, distance: 7.66, duration: 20.03 },
+  { date: '2025-08-10', avgPower: 86, distance: 7.81, duration: 20.07 },
+];
+
+// Calculate progress metrics
+const firstData = sampleData[0];
+const lastData = sampleData[sampleData.length - 1];
+const powerImprovement = ((lastData.avgPower - firstData.avgPower) / firstData.avgPower * 100).toFixed(1);
+const distanceImprovement = ((lastData.distance - firstData.distance) / firstData.distance * 100).toFixed(1);
+const durationImprovement = ((lastData.duration - firstData.duration) / firstData.duration * 100).toFixed(1);
+
+// Format dates for chart
+const chartData: ChartData[] = sampleData.map(item => {
+  const date = new Date(item.date);
+  return {
+    ...item,
+    displayDate: `${date.getDate()} / ${date.getMonth() + 1}`
+  };
+});
+
+// Generate SVG path for line charts
+function generatePath(data: ChartData[], key: keyof CyclingData, width: number, height: number, padding: number = 50): string {
+  const values = data.map(d => d[key] as number);
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  const range = maxVal - minVal || 1;
+  
+  const points = data.map((d, i) => {
+    const x = padding + (i / (data.length - 1)) * (width - 2 * padding);
+    const y = height - padding - (((d[key] as number) - minVal) / range) * (height - 2 * padding);
+    return `${x},${y}`;
+  });
+  
+  return `M ${points.join(' L ')}`;
+}
+
+const chartWidth: number = 800;
+const chartHeight: number = 400;
+const barChartHeight: number = 300;
+---
+
+<div class="p-6 max-w-6xl mx-auto bg-white">
+  <h1 class="text-3xl font-bold text-gray-800 mb-6">Cycling Recovery Progress</h1>
+  
+  <!-- Progress Summary Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+      <h3 class="font-semibold text-blue-800">Average Power</h3>
+      <p class="text-2xl font-bold text-blue-600">{lastData.avgPower}W</p>
+      <p class="text-sm text-blue-600">+{powerImprovement}% from start</p>
+    </div>
+    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+      <h3 class="font-semibold text-green-800">Distance</h3>
+      <p class="text-2xl font-bold text-green-600">{lastData.distance} mi</p>
+      <p class="text-sm text-green-600">+{distanceImprovement}% from start</p>
+    </div>
+    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+      <h3 class="font-semibold text-purple-800">Duration</h3>
+      <p class="text-2xl font-bold text-purple-600">{lastData.duration} min</p>
+      <p class="text-sm text-purple-600">+{durationImprovement}% from start</p>
+    </div>
+  </div>
+
+  <!-- Metric Toggle Buttons -->
+  <div class="mb-6">
+    <h3 class="text-lg font-semibold mb-3">Select Metrics to Display:</h3>
+    <div class="flex flex-wrap gap-2">
+      <button 
+        data-metric="avgPower" 
+        class="metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-blue-600 text-white"
+      >
+        Average Power (W)
+      </button>
+      <button 
+        data-metric="distance" 
+        class="metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-green-600 text-white"
+      >
+        Distance (mi)
+      </button>
+      <button 
+        data-metric="duration" 
+        class="metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-purple-600 text-white"
+      >
+        Duration (min)
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Progress Chart -->
+  <div class="bg-gray-50 p-6 rounded-lg mb-8">
+    <h2 class="text-xl font-semibold mb-4">Progress Over Time</h2>
+    <div class="w-full overflow-x-auto">
+      <svg width={chartWidth} height={chartHeight} class="border border-gray-200 bg-white">
+        <!-- Grid lines -->
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3,3"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+        
+        <!-- Power line -->
+        <path 
+          id="power-line"
+          d={generatePath(chartData, 'avgPower', chartWidth, chartHeight)}
+          fill="none" 
+          stroke="#2563eb" 
+          stroke-width="3"
+        />
+        
+        <!-- Distance line -->
+        <path 
+          id="distance-line"
+          d={generatePath(chartData, 'distance', chartWidth, chartHeight)}
+          fill="none" 
+          stroke="#16a34a" 
+          stroke-width="3"
+        />
+        
+        <!-- Duration line -->
+        <path 
+          id="duration-line"
+          d={generatePath(chartData, 'duration', chartWidth, chartHeight)}
+          fill="none" 
+          stroke="#9333ea" 
+          stroke-width="3"
+        />
+        
+        <!-- Data points for Power -->
+        {chartData.map((point, i) => {
+          const x = 50 + (i / (chartData.length - 1)) * (chartWidth - 100);
+          const powerValues = chartData.map(d => d.avgPower);
+          const minPower = Math.min(...powerValues);
+          const maxPower = Math.max(...powerValues);
+          const powerRange = maxPower - minPower || 1;
+          const y = chartHeight - 50 - ((point.avgPower - minPower) / powerRange) * (chartHeight - 100);
+          
+          return (
+            <circle 
+              class="power-point" 
+              cx={x} 
+              cy={y} 
+              r="4" 
+              fill="#2563eb"
+            >
+              <title>{point.displayDate}: {point.avgPower}W</title>
+            </circle>
+          );
+        })}
+        
+        <!-- Data points for Distance -->
+        {chartData.map((point, i) => {
+          const x = 50 + (i / (chartData.length - 1)) * (chartWidth - 100);
+          const distanceValues = chartData.map(d => d.distance);
+          const minDistance = Math.min(...distanceValues);
+          const maxDistance = Math.max(...distanceValues);
+          const distanceRange = maxDistance - minDistance || 1;
+          const y = chartHeight - 50 - ((point.distance - minDistance) / distanceRange) * (chartHeight - 100);
+          
+          return (
+            <circle 
+              class="distance-point" 
+              cx={x} 
+              cy={y} 
+              r="4" 
+              fill="#16a34a"
+            >
+              <title>{point.displayDate}: {point.distance} mi</title>
+            </circle>
+          );
+        })}
+        
+        <!-- Data points for Duration -->
+        {chartData.map((point, i) => {
+          const x = 50 + (i / (chartData.length - 1)) * (chartWidth - 100);
+          const durationValues = chartData.map(d => d.duration);
+          const minDuration = Math.min(...durationValues);
+          const maxDuration = Math.max(...durationValues);
+          const durationRange = maxDuration - minDuration || 1;
+          const y = chartHeight - 50 - ((point.duration - minDuration) / durationRange) * (chartHeight - 100);
+          
+          return (
+            <circle 
+              class="duration-point" 
+              cx={x} 
+              cy={y} 
+              r="4" 
+              fill="#9333ea"
+            >
+              <title>{point.displayDate}: {point.duration} min</title>
+            </circle>
+          );
+        })}
+        
+        <!-- X-axis labels -->
+        {chartData.filter((_, i) => i % 3 === 0).map((point, i) => {
+          const actualIndex = i * 3;
+          const x = 50 + (actualIndex / (chartData.length - 1)) * (chartWidth - 100);
+          return (
+            <text 
+              x={x} 
+              y={chartHeight - 20} 
+              text-anchor="middle" 
+              class="text-xs fill-gray-600"
+            >
+              {point.displayDate}
+            </text>
+          );
+        })}
+      </svg>
+    </div>
+    
+    <!-- Legend -->
+    <div class="flex flex-wrap gap-4 mt-4 justify-center">
+      <div id="power-legend" class="flex items-center gap-2">
+        <div class="w-4 h-1 bg-blue-600"></div>
+        <span class="text-sm text-gray-600">Average Power (W)</span>
+      </div>
+      <div id="distance-legend" class="flex items-center gap-2">
+        <div class="w-4 h-1 bg-green-600"></div>
+        <span class="text-sm text-gray-600">Distance (mi)</span>
+      </div>
+      <div id="duration-legend" class="flex items-center gap-2">
+        <div class="w-4 h-1 bg-purple-600"></div>
+        <span class="text-sm text-gray-600">Duration (min)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Sessions Bar Chart -->
+  <div class="bg-gray-50 p-6 rounded-lg">
+    <h2 class="text-xl font-semibold mb-4">Recent Sessions - Power Output</h2>
+    <div class="w-full overflow-x-auto">
+      <svg width={chartWidth} height={barChartHeight} class="border border-gray-200 bg-white">
+        <!-- Grid -->
+        <rect width="100%" height="100%" fill="url(#grid)" />
+        
+        {chartData.slice(-7).map((point, i) => {
+          const barWidth = (chartWidth - 100) / 7;
+          const x = 50 + i * barWidth + barWidth * 0.1;
+          const maxPower = Math.max(...chartData.slice(-7).map(d => d.avgPower));
+          const barHeight = (point.avgPower / maxPower) * (barChartHeight - 100);
+          const y = barChartHeight - 50 - barHeight;
+          
+          return (
+            <g>
+              <rect 
+                x={x} 
+                y={y} 
+                width={barWidth * 0.8} 
+                height={barHeight} 
+                fill="#2563eb"
+              >
+                <title>{point.displayDate}: {point.avgPower}W</title>
+              </rect>
+              <text 
+                x={x + barWidth * 0.4} 
+                y={barChartHeight - 30} 
+                text-anchor="middle" 
+                class="text-xs fill-gray-600"
+              >
+                {point.displayDate}
+              </text>
+              <text 
+                x={x + barWidth * 0.4} 
+                y={y - 5} 
+                text-anchor="middle" 
+                class="text-xs fill-gray-800"
+              >
+                {point.avgPower}W
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Toggle visibility of chart lines and points
+  const toggleButtons = document.querySelectorAll('.metric-toggle') as NodeListOf<HTMLButtonElement>;
+  
+  toggleButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const metric = button.dataset.metric as string;
+      const isActive = button.classList.contains('bg-blue-600') || 
+                      button.classList.contains('bg-green-600') || 
+                      button.classList.contains('bg-purple-600');
+      
+      if (isActive) {
+        // Deactivate
+        button.className = 'metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-gray-200 text-gray-600 hover:bg-gray-300';
+        hideMetric(metric);
+      } else {
+        // Activate
+        if (metric === 'avgPower') {
+          button.className = 'metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-blue-600 text-white';
+        } else if (metric === 'distance') {
+          button.className = 'metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-green-600 text-white';
+        } else if (metric === 'duration') {
+          button.className = 'metric-toggle px-4 py-2 rounded-lg font-medium transition-colors bg-purple-600 text-white';
+        }
+        showMetric(metric);
+      }
+    });
+  });
+  
+  function hideMetric(metric: string): void {
+    const line = document.getElementById(`${metric}-line`) as HTMLElement | null;
+    const points = document.querySelectorAll(`.${metric}-point`) as NodeListOf<HTMLElement>;
+    const legend = document.getElementById(`${metric}-legend`) as HTMLElement | null;
+    
+    if (line) line.style.display = 'none';
+    points.forEach(point => point.style.display = 'none');
+    if (legend) legend.style.opacity = '0.5';
+  }
+  
+  function showMetric(metric: string): void {
+    const line = document.getElementById(`${metric === 'avgPower' ? 'power' : metric}-line`) as HTMLElement | null;
+    const points = document.querySelectorAll(`.${metric === 'avgPower' ? 'power' : metric}-point`) as NodeListOf<HTMLElement>;
+    const legend = document.getElementById(`${metric === 'avgPower' ? 'power' : metric}-legend`) as HTMLElement | null;
+    
+    if (line) line.style.display = 'block';
+    points.forEach(point => point.style.display = 'block');
+    if (legend) legend.style.opacity = '1';
+  }
+</script>
